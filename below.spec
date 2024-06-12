@@ -12,8 +12,8 @@ Release:        %{release}
 License:        Apache-2.0 AND (MIT OR Apache-2.0) AND Unicode-DFS-2016 AND (Apache-2.0 OR BSL-1.0) AND (Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT) AND BSD-2-Clause AND (BSD-2-Clause OR Apache-2.0 OR MIT) AND (BSD-3-Clause OR MIT OR Apache-2.0) AND (LGPL-2.1-only OR BSD-2-Clause) AND MIT AND (MPL-2.0 OR MIT OR Apache-2.0) AND (Unlicense OR MIT)
 URL:            https://github.com/facebookincubator/below
 Source0:        https://github.com/facebookincubator/below/archive/refs/tags/v%{version}.tar.gz
-Source1:        https://github.com/facebookincubator/below/tree/main/etc/below.service
-Source2:        https://github.com/facebookincubator/below/tree/main/etc/logrotate.conf
+Source1:        https://raw.githubusercontent.com/facebookincubator/below/main/etc/below.service
+Source2:        https://raw.githubusercontent.com/facebookincubator/below/main/etc/logrotate.conf
 
 ExcludeArch:    %{arm32} %{ix86}
 
