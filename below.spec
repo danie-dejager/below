@@ -1,6 +1,6 @@
 %define name below
 %define version 0.8.1
-%define release 4%{?dist}
+%define release 5%{?dist}
 %define debug_package %{nil}
 %global toolchain clang
 %global _lto_cflags %{nil}
@@ -79,6 +79,7 @@ install -d -m1777 %{buildroot}%{_localstatedir}/log/%{name}
 %dir %{_localstatedir}/log/%{name}
 
 %changelog
+* Tue Nov 5 2024 - Danie de Jager - 0.8.1-5
 * Tue Jun 11 2024 Danie de Jager - 0.8.1-3
 - Add service and logrotate configs.
 * Wed Feb 28 2024 Danie de Jager - 0.7.1-1
