@@ -12,10 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 use cursive::Cursive;
+use cursive::view::Margins;
 use cursive::view::Nameable;
 use cursive::view::View;
 use cursive::views::LinearLayout;
-use cursive::views::TextView;
+use cursive::views::PaddedView;
+use cursive::views::Panel;
 
 use crate::ViewState;
 
@@ -25,8 +27,8 @@ mod render_impl {
     use std::str::FromStr;
 
     use base_render::RenderConfig;
-    use base_render::RenderConfigBuilder as Rc;
     use cursive::utils::markup::StyledString;
+    use cursive::views::TextView;
     use model::Model;
     use model::ModelFieldId;
     use model::ProcessModel;
@@ -36,7 +38,6 @@ mod render_impl {
     use model::SystemModel;
     use once_cell::sync::Lazy;
     use procfs::PidState;
-    use procfs::PidStateExt;
 
     use crate::render::ViewItem;
     use crate::viewrc::ViewRc;
@@ -84,109 +85,122 @@ mod render_impl {
         ]
     });
 
-    const ROW_NAME_WIDTH: usize = 15;
-    const ROW_FIELD_NAME_WIDTH: usize = 9;
-    const ROW_FIELD_WIDTH: usize = 21;
-    /// ROW_FIELD_WIDTH_HALVED * 2 + 1 == ROW_NAME_WIDTH, the +1 is for the '|'
-    ///
-    /// Need 10 chars for each field b/c each value has up to 4 significant digits
-    /// with a dot, a space, 4 chars for units
-    const ROW_FIELD_WIDTH_HALVED: usize = 10;
-    /// Maximum number of I/O devices to display
-    const MAX_IO_DEVICES: usize = 5;
+    /// Represents a single title/value entry in this view.
+    pub struct Entry {
+        title: String,
+        value: String,
+    }
 
-    pub fn render_row<T: Queriable>(
-        name: &'static str,
+    pub fn gather<T: Queriable>(
         model: &T,
         items: impl Iterator<Item = ViewItem<T::FieldId>>,
-    ) -> StyledString {
-        let mut row = StyledString::new();
-        row.append(base_render::get_fixed_width(name, ROW_NAME_WIDTH));
+    ) -> Vec<Entry> {
+        let mut group = Vec::new();
         for item in items {
-            let title = item.config.render_config.get_title();
-            row.append(base_render::get_fixed_width(title, ROW_FIELD_NAME_WIDTH));
-            row.append(item.update(Rc::new().width(ROW_FIELD_WIDTH)).render(model));
+            group.push(Entry {
+                title: item.config.render_config.get_title().to_string(),
+                value: item.render_tight(model).source().to_string(),
+            });
         }
-        row
+        group
     }
 
-    pub fn render_extra_row(extra_row: &SummaryViewExtraRow, model: &Model) -> StyledString {
-        let mut row = StyledString::new();
-        if let Some(title) = &extra_row.title {
-            row.append(title.clone());
-        }
-        for item in &extra_row.items {
-            if !row.is_empty() {
-                row.append(" | ");
-            }
-            row.append(format!("{} ", item.config.render_config.get_title()));
+    pub fn render_extra_group(group: &SummaryViewExtraRow, model: &Model) -> TextView {
+        let mut view = TextView::new("");
+        let title_width = group
+            .items
+            .iter()
+            .map(|item| item.config.render_config.get_title().len() + 2)
+            .max()
+            .unwrap_or(10);
+
+        for item in &group.items {
+            let mut row = StyledString::new();
+            row.append(base_render::get_fixed_width(
+                item.config.render_config.get_title(),
+                title_width,
+            ));
             row.append(item.render_tight(model));
+            row.append('\n');
+
+            view.append(row);
         }
-        row
+
+        view
     }
 
-    pub fn render_read_write_models_row<'a, T: 'a + Queriable>(
-        name: &'static str,
+    pub fn gather_read_write_models<'a, T: 'a + Queriable>(
         models: impl Iterator<Item = (&'a String, &'a T)>,
         read_item: ViewItem<T::FieldId>,
         write_item: ViewItem<T::FieldId>,
-    ) -> StyledString {
-        let read_item = read_item.update(Rc::new().width(ROW_FIELD_WIDTH_HALVED));
-        let write_item = write_item.update(Rc::new().width(ROW_FIELD_WIDTH_HALVED));
+    ) -> Vec<Entry> {
+        // Maximum number of I/O devices to display.
+        const MAX_IO_DEVICES: usize = 5;
 
-        let mut row = StyledString::new();
-        row.append(base_render::get_fixed_width(name, ROW_NAME_WIDTH));
+        let mut group = Vec::new();
         for (count, (name, model)) in models.enumerate() {
             if count >= MAX_IO_DEVICES {
-                row.append(base_render::get_fixed_width(name, ROW_FIELD_NAME_WIDTH));
-                row.append_plain("[...]");
+                group.push(Entry {
+                    title: "[...]".to_string(),
+                    value: "[...]".to_string(),
+                });
                 break;
             }
 
-            row.append(base_render::get_fixed_width(name, ROW_FIELD_NAME_WIDTH));
-            row.append(read_item.render(model));
-            row.append_plain("|");
-            row.append(write_item.render(model));
+            group.push(Entry {
+                title: format!("{name} Read"),
+                value: format!(
+                    // Provide a reasonable fixed width for both read and write so that
+                    // fluctuations do not cause columns to shift left and right every interval.
+                    "{:10}",
+                    read_item.render_tight(model).source(),
+                ),
+            });
+            group.push(Entry {
+                title: format!("{name} Write"),
+                value: format!(
+                    // See above.
+                    "{:10}",
+                    write_item.render_tight(model).source(),
+                ),
+            });
         }
-        row
+        group
     }
 
-    pub fn render_cpu_row(model: &SystemModel) -> StyledString {
-        render_row("CPU", model, SYS_CPU_ITEMS.iter().cloned())
+    pub fn gather_cpu(model: &SystemModel) -> Vec<Entry> {
+        gather(model, SYS_CPU_ITEMS.iter().cloned())
     }
 
-    pub fn render_mem_row(model: &SystemModel) -> StyledString {
-        render_row("Mem", model, SYS_MEM_ITEMS.iter().cloned())
+    pub fn gather_mem(model: &SystemModel) -> Vec<Entry> {
+        gather(model, SYS_MEM_ITEMS.iter().cloned())
     }
 
-    pub fn render_vm_row(model: &SystemModel) -> StyledString {
-        render_row("VM", model, SYS_VM_ITEMS.iter().cloned())
+    pub fn gather_vm(model: &SystemModel) -> Vec<Entry> {
+        gather(model, SYS_VM_ITEMS.iter().cloned())
     }
 
-    pub fn render_io_row(disks: &BTreeMap<String, SingleDiskModel>) -> StyledString {
+    pub fn gather_io(disks: &BTreeMap<String, SingleDiskModel>) -> Vec<Entry> {
         use model::SingleDiskModelFieldId::ReadBytesPerSec;
         use model::SingleDiskModelFieldId::WriteBytesPerSec;
-        render_read_write_models_row(
-            "I/O   (Rd|Wr)", // Line up () with Iface's below
+        gather_read_write_models(
             disks.iter().filter(|(_, sdm)| sdm.minor == Some(0)),
             ViewItem::from_default(ReadBytesPerSec),
             ViewItem::from_default(WriteBytesPerSec),
         )
     }
 
-    pub fn render_iface_row(ifaces: &BTreeMap<String, SingleNetModel>) -> StyledString {
+    pub fn gather_iface(ifaces: &BTreeMap<String, SingleNetModel>) -> Vec<Entry> {
         use model::SingleNetModelFieldId::RxBytesPerSec;
         use model::SingleNetModelFieldId::TxBytesPerSec;
-        render_read_write_models_row(
-            "Iface (Rx|Tx)",
+        gather_read_write_models(
             ifaces.iter(),
             ViewItem::from_default(RxBytesPerSec),
             ViewItem::from_default(TxBytesPerSec),
         )
     }
 
-    pub fn render_state_row(processes: &ProcessModel) -> StyledString {
-        const COUNT_WIDTH: usize = 7;
+    pub fn gather_state(processes: &ProcessModel) -> Vec<Entry> {
         let mut counts: HashMap<procfs::PidState, u32> = HashMap::new();
         for process in processes.processes.values() {
             if let Some(state) = process.state.clone() {
@@ -194,32 +208,47 @@ mod render_impl {
                 *count += 1;
             }
         }
-        let mut row = StyledString::new();
-        row.append(base_render::get_fixed_width("Process", ROW_NAME_WIDTH));
-        row.append("Total ");
-        row.append(base_render::get_fixed_width(
-            &processes.processes.len().to_string(),
-            COUNT_WIDTH,
-        ));
+        let mut group = Vec::new();
+        group.push(Entry {
+            title: "Total".to_string(),
+            value: processes.processes.len().to_string(),
+        });
 
-        // row.append(base_render::get_fixed_width("TOT", ROW_NAME_WIDTH));
-        for state in [
-            PidState::Running,
-            PidState::Sleeping,
-            PidState::UninterruptibleSleep,
-            PidState::Zombie,
+        for (state, name) in [
+            (PidState::Running, "Running"),
+            (PidState::Sleeping, "Sleeping"),
+            (PidState::UninterruptibleSleep, "D-state"),
+            (PidState::Zombie, "Zombie"),
         ] {
             let mut count = *counts.get(&state).unwrap_or(&0);
             if state == PidState::Sleeping {
                 count += *counts.get(&PidState::Idle).unwrap_or(&0);
             }
-            row.append(format!("{} ", state.as_char().unwrap()));
-            row.append(base_render::get_fixed_width(
-                &count.to_string(),
-                COUNT_WIDTH,
-            ));
+            group.push(Entry {
+                title: name.to_string(),
+                value: count.to_string(),
+            });
         }
-        row
+        group
+    }
+
+    /// Render a group of entries.
+    pub fn render_group(entries: &[Entry]) -> TextView {
+        let mut view = TextView::new("");
+        let title_width = entries
+            .iter()
+            .map(|e| e.title.len() + 2)
+            .max()
+            .unwrap_or(10);
+        for entry in entries {
+            let mut row = StyledString::new();
+            row.append(base_render::get_fixed_width(&entry.title, title_width));
+            row.append(&entry.value);
+            row.append('\n');
+
+            view.append(row);
+        }
+        view
     }
 
     pub struct SummaryViewExtraRow {
@@ -227,7 +256,7 @@ mod render_impl {
         pub items: Vec<ViewItem<model::ModelFieldId>>,
     }
 
-    pub fn get_summary_view_extra_rows(viewrc: &ViewRc) -> Vec<SummaryViewExtraRow> {
+    pub fn get_summary_view_extra_group(viewrc: &ViewRc) -> Vec<SummaryViewExtraRow> {
         if let Some(viewrc_rows) = viewrc.summary_view_extra_rows.as_ref() {
             viewrc_rows
                 .iter()
@@ -257,6 +286,8 @@ mod render_impl {
 }
 
 fn fill_content(c: &mut Cursive, v: &mut LinearLayout) {
+    use render_impl::render_group;
+
     let view_state = &c
         .user_data::<ViewState>()
         .expect("No data stored in Cursive object!");
@@ -264,28 +295,31 @@ fn fill_content(c: &mut Cursive, v: &mut LinearLayout) {
     let system_model = view_state.system.borrow();
     let network_model = view_state.network.borrow();
     let process_model = view_state.process.borrow();
-    let cpu_row = render_impl::render_cpu_row(&system_model);
-    let mem_row = render_impl::render_mem_row(&system_model);
-    let vm_row = render_impl::render_vm_row(&system_model);
-    let io_row = render_impl::render_io_row(&system_model.disks);
-    let iface_row = render_impl::render_iface_row(&network_model.interfaces);
-    let state_row = render_impl::render_state_row(&process_model);
+    let cpu = render_impl::gather_cpu(&system_model);
+    let mem = render_impl::gather_mem(&system_model);
+    let vm = render_impl::gather_vm(&system_model);
+    let io = render_impl::gather_io(&system_model.disks);
+    let iface = render_impl::gather_iface(&network_model.interfaces);
+    let state = render_impl::gather_state(&process_model);
 
-    let mut view = LinearLayout::vertical();
-    view.add_child(TextView::new(state_row));
-    view.add_child(TextView::new(cpu_row));
-    view.add_child(TextView::new(mem_row));
-    view.add_child(TextView::new(vm_row));
-    view.add_child(TextView::new(io_row));
-    view.add_child(TextView::new(iface_row));
+    let mut view = LinearLayout::horizontal();
+    let pad = |v| PaddedView::new(Margins::lr(0, 1), v);
+    view.add_child(pad(Panel::new(render_group(&cpu)).title("CPU")));
+    view.add_child(pad(Panel::new(render_group(&mem)).title("Mem")));
+    view.add_child(pad(Panel::new(render_group(&vm)).title("Vm")));
+    view.add_child(pad(Panel::new(render_group(&state)).title("Process")));
+    view.add_child(pad(Panel::new(render_group(&io)).title("I/O")));
+    view.add_child(pad(Panel::new(render_group(&iface)).title("Interface")));
 
     let model = view_state.model.borrow();
     // TODO: Save the parsed extra rows in a struct and reuse
-    let extra_rows = render_impl::get_summary_view_extra_rows(&view_state.viewrc);
-    for extra_row in extra_rows {
-        view.add_child(TextView::new(render_impl::render_extra_row(
-            &extra_row, &model,
-        )));
+    let extra_groups = render_impl::get_summary_view_extra_group(&view_state.viewrc);
+    for extra_group in extra_groups {
+        let mut panel = Panel::new(render_impl::render_extra_group(&extra_group, &model));
+        if let Some(title) = &extra_group.title {
+            panel.set_title(title);
+        }
+        view.add_child(pad(panel));
     }
 
     *v = view;
@@ -299,8 +333,8 @@ pub fn refresh(c: &mut Cursive) {
     fill_content(c, &mut v);
 }
 
-pub fn new(c: &mut Cursive) -> impl View {
-    let mut view = LinearLayout::vertical();
+pub fn new(c: &mut Cursive) -> impl View + use<> {
+    let mut view = LinearLayout::horizontal();
     fill_content(c, &mut view);
     view.with_name("summary_view")
 }

@@ -26,9 +26,12 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use std::sync::mpsc::Receiver;
 use std::sync::mpsc::RecvTimeoutError;
+use std::sync::mpsc::SyncSender;
 use std::sync::mpsc::TryRecvError;
 use std::sync::mpsc::channel;
+use std::sync::mpsc::sync_channel;
 use std::thread;
+use std::thread::JoinHandle;
 use std::time::Duration;
 use std::time::Instant;
 use std::time::SystemTime;
@@ -47,6 +50,7 @@ use indicatif::ProgressBar;
 use nix::sys::mman::MlockAllFlags;
 use nix::sys::mman::mlockall;
 use regex::Regex;
+use scopeguard::guard;
 use signal_hook::iterator::Signals;
 use slog::debug;
 use slog::error;
@@ -203,6 +207,9 @@ enum Command {
         /// Options for compression
         #[clap(flatten)]
         compress_opts: CompressOpts,
+        /// Max number of samples we will buffer before writing becomes blocking
+        #[clap(short, default_value = "10")]
+        writer_buffer_size: usize,
     },
     /// Replay historical data (interactive)
     Replay {
@@ -538,6 +545,66 @@ fn cleanup_store(
     Ok(())
 }
 
+pub struct WorkerTask {
+    post_collect_sys_time: SystemTime,
+    data: DataFrame,
+}
+
+fn start_store_writer_thread(
+    logger: slog::Logger,
+    mut store: store::StoreWriter,
+    store_size_limit: Option<u64>,
+    retention: Option<Duration>,
+    writer_buffer_size: usize,
+) -> Result<(JoinHandle<()>, SyncSender<WorkerTask>)> {
+    let (send_task, recv_task) = sync_channel::<WorkerTask>(writer_buffer_size);
+    let handle = thread::Builder::new()
+        .name("store_writer".to_owned())
+        .spawn(move || {
+            loop {
+                let loop_start_time = Instant::now();
+                match recv_task.recv() {
+                    Ok(write_task) => {
+                        match store.put(write_task.post_collect_sys_time, &write_task.data) {
+                            Ok(/* new shard */ true) => {
+                                cleanup_store(
+                                    &store,
+                                    &logger,
+                                    store_size_limit,
+                                    /* retention */ None,
+                                )
+                                .expect("cleanup_store failed");
+                            }
+                            Ok(/* new shard */ false) => {}
+                            Err(e) => {
+                                error!(logger, "{:#}", e);
+                                // no need to report/cleanup
+                                continue;
+                            }
+                        }
+                        statistics::report_writer_time_ms(
+                            Instant::now().duration_since(loop_start_time),
+                        );
+                    }
+                    Err(_) => {
+                        warn!(
+                            logger,
+                            "store_write input channel disconnected, exiting thread"
+                        );
+                        // end loop
+                        break;
+                    }
+                }
+
+                // Only check against retention and not size limit. Size limit is only
+                // checked on creation of successful write to a new shard.
+                cleanup_store(&store, &logger, /* store_size_limit */ None, retention)
+                    .expect("cleanup_store failed");
+            }
+        })?;
+    Ok((handle, send_task))
+}
+
 /// Special Error that indicates the program should stop now. It represents an
 /// actual signal, e.g. SIGINT, SIGTERM, that is handled by below and thus below
 /// can shutdown gracefully.
@@ -666,9 +733,9 @@ fn real_main(init: init::InitToken) {
     let rc = match cmd {
         Command::External(command) => commands::run_command(init, debug, below_config, command),
         Command::Live {
-            ref interval_s,
-            ref host,
-            ref port,
+            interval_s,
+            host,
+            port,
         } => {
             let host = host.clone();
             let port = *port;
@@ -692,15 +759,16 @@ fn real_main(init: init::InitToken) {
             )
         }
         Command::Record {
-            ref interval_s,
-            ref retain_for_s,
-            ref store_size_limit,
-            ref collect_io_stat,
-            ref port,
-            ref skew_detection_threshold_ms,
-            ref disable_disk_stat,
-            ref disable_exitstats,
-            ref compress_opts,
+            interval_s,
+            retain_for_s,
+            store_size_limit,
+            collect_io_stat,
+            port,
+            skew_detection_threshold_ms,
+            disable_disk_stat,
+            disable_exitstats,
+            compress_opts,
+            ref writer_buffer_size,
         } => {
             logutil::set_current_log_target(logutil::TargetLog::Term);
             run(
@@ -723,16 +791,17 @@ fn real_main(init: init::InitToken) {
                         *disable_disk_stat,
                         *disable_exitstats,
                         compress_opts,
+                        *writer_buffer_size,
                     )
                 },
             )
         }
         Command::Replay {
-            ref time,
-            ref host,
-            ref port,
-            ref yesterdays,
-            ref snapshot,
+            time,
+            host,
+            port,
+            yesterdays,
+            snapshot,
         } => {
             let time = time.clone();
             let host = host.clone();
@@ -759,12 +828,12 @@ fn real_main(init: init::InitToken) {
             )
         }
         Command::Snapshot {
-            ref begin,
-            ref end,
-            ref duration,
-            ref output,
-            ref host,
-            ref port,
+            begin,
+            end,
+            duration,
+            output,
+            host,
+            port,
         } => {
             let begin = begin.clone();
             let end = end.clone();
@@ -791,8 +860,8 @@ fn real_main(init: init::InitToken) {
                 },
             )
         }
-        Command::Debug { ref cmd } => match cmd {
-            DebugCommand::DumpStore { ref time, ref json } => {
+        Command::Debug { cmd } => match cmd {
+            DebugCommand::DumpStore { time, json } => {
                 let time = time.clone();
                 let json = *json;
                 run(
@@ -804,14 +873,14 @@ fn real_main(init: init::InitToken) {
                 )
             }
             DebugCommand::ConvertStore {
-                ref begin,
-                ref end,
-                ref duration,
-                ref from_store_dir,
-                ref to_store_dir,
-                ref host,
-                ref port,
-                ref compress_opts,
+                begin,
+                end,
+                duration,
+                from_store_dir,
+                to_store_dir,
+                host,
+                port,
+                compress_opts,
             } => {
                 let begin = begin.clone();
                 let end = end.clone();
@@ -843,10 +912,10 @@ fn real_main(init: init::InitToken) {
             }
         },
         Command::Dump {
-            ref host,
-            ref port,
-            ref snapshot,
-            ref cmd,
+            host,
+            port,
+            snapshot,
+            cmd,
         } => {
             let store_dir = below_config.store_dir.clone();
             let host = host.clone();
@@ -863,10 +932,7 @@ fn real_main(init: init::InitToken) {
                 },
             )
         }
-        Command::GenerateCompletions {
-            ref shell,
-            ref output,
-        } => {
+        Command::GenerateCompletions { shell, output } => {
             generate_completions(*shell, output.clone())
                 .unwrap_or_else(|_| panic!("Failed to generate completions for {:?}", shell));
             0
@@ -965,20 +1031,13 @@ fn record(
     disable_disk_stat: bool,
     disable_exitstats: bool,
     compress_opts: &CompressOpts,
+    writer_buffer_size: usize,
 ) -> Result<()> {
     debug!(logger, "Starting up!");
 
     if !disable_exitstats {
         bump_memlock_rlimit()?;
     }
-
-    let mut store = store::StoreWriter::new(
-        logger.clone(),
-        &below_config.store_dir,
-        compress_opts.to_compression_mode()?,
-        store::Format::Cbor,
-    )?;
-    let mut stats = statistics::Statistics::new(init);
 
     let (exit_buffer, bpf_errs) = if disable_exitstats {
         (Arc::new(Mutex::new(procfs::PidMap::new())), None)
@@ -1036,6 +1095,28 @@ fn record(
         },
     );
 
+    let store = store::StoreWriter::new(
+        logger.clone(),
+        &below_config.store_dir,
+        compress_opts.to_compression_mode()?,
+        store::Format::Cbor,
+    )?;
+
+    let mut stats = statistics::Statistics::new(init);
+
+    let (writer_thread, send_task) = start_store_writer_thread(
+        logger.clone(),
+        store,
+        store_size_limit,
+        retention,
+        writer_buffer_size,
+    )?;
+
+    let send_task = guard(send_task, |s| {
+        drop(s);
+        let _ = writer_thread.join();
+    });
+
     let ret = mlockall(MlockAllFlags::MCL_CURRENT);
     if ret.is_err() {
         warn!(
@@ -1078,23 +1159,20 @@ fn record(
                 collection_skew.as_millis(),
                 skew_detection_threshold.as_millis()
             );
-
-            stats.report_collection_skew();
+            statistics::report_collection_skew();
         }
 
         match collected_sample {
             Ok(s) => {
-                let frame = DataFrame { sample: s };
-                match store.put(post_collect_sys_time, &frame) {
-                    Ok(/* new shard */ true) => {
-                        cleanup_store(&store, &logger, store_size_limit, /* retention */ None)?
-                    }
-                    Ok(/* new shard */ false) => {}
-                    Err(e) => error!(logger, "{:#}", e),
-                }
                 if below_config.enable_gpu_stats {
-                    stats.report_nr_accelerators(&frame.sample);
+                    stats.report_nr_accelerators(&s);
                 }
+                send_task
+                    .send(WorkerTask {
+                        post_collect_sys_time,
+                        data: DataFrame { sample: s },
+                    })
+                    .expect("Failed to send write task");
             }
             Err(e) => {
                 // Handle cgroupfs errors
@@ -1106,13 +1184,11 @@ fn record(
             }
         };
 
-        // Only check against retention and not size limit. Size limit is only
-        // checked on creation of successful write to a new shard.
-        cleanup_store(&store, &logger, /* store_size_limit */ None, retention)?;
-
         stats.report_store_size(below_config.store_dir.as_path());
 
         let collect_duration = Instant::now().duration_since(collect_instant);
+        statistics::report_collection_time_ms(collect_duration);
+
         // Sleep for at least 1s to avoid sample collision
         let sleep_duration = if interval > collect_duration {
             std::cmp::max(Duration::from_secs(1), interval - collect_duration)
@@ -1134,7 +1210,7 @@ fn live_local(
     if let Err(e) = bump_memlock_rlimit() {
         warn!(
             logger,
-            #"V",
+            # "V",
             "Failed to initialize BPF: {}. Data collection will be degraded. \
             You can ignore this warning or try to run with sudo.",
             &e
