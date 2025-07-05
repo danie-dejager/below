@@ -46,6 +46,7 @@ mod render_impl {
     type SummaryViewItem = ViewItem<model::SystemModelFieldId>;
 
     static SYS_CPU_ITEMS: Lazy<Vec<SummaryViewItem>> = Lazy::new(|| {
+        use model::SingleCpuModelFieldId::NicePct;
         use model::SingleCpuModelFieldId::SystemPct;
         use model::SingleCpuModelFieldId::UsagePct;
         use model::SingleCpuModelFieldId::UserPct;
@@ -54,6 +55,7 @@ mod render_impl {
             ViewItem::from_default(Cpu(UsagePct)),
             ViewItem::from_default(Cpu(UserPct)),
             ViewItem::from_default(Cpu(SystemPct)),
+            ViewItem::from_default(Cpu(NicePct)),
         ]
     });
 
@@ -293,9 +295,9 @@ fn fill_content(c: &mut Cursive, v: &mut LinearLayout) {
         .user_data::<ViewState>()
         .expect("No data stored in Cursive object!");
 
-    let system_model = view_state.system.borrow();
-    let network_model = view_state.network.borrow();
-    let process_model = view_state.process.borrow();
+    let system_model = view_state.system.lock().unwrap();
+    let network_model = view_state.network.lock().unwrap();
+    let process_model = view_state.process.lock().unwrap();
     let cpu = render_impl::gather_cpu(&system_model);
     let mem = render_impl::gather_mem(&system_model);
     let vm = render_impl::gather_vm(&system_model);
@@ -312,7 +314,7 @@ fn fill_content(c: &mut Cursive, v: &mut LinearLayout) {
     view.add_child(pad(Panel::new(render_group(&io)).title("I/O")));
     view.add_child(pad(Panel::new(render_group(&iface)).title("Interface")));
 
-    let model = view_state.model.borrow();
+    let model = view_state.model.lock().unwrap();
     // TODO: Save the parsed extra rows in a struct and reuse
     let extra_groups = render_impl::get_summary_view_extra_group(&view_state.viewrc);
     for extra_group in extra_groups {
