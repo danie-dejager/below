@@ -1,5 +1,5 @@
 %define name below
-%define version 0.9.0
+%define version 0.10.0
 %define release 0%{?dist}
 %define debug_package %{nil}
 %global toolchain clang
@@ -79,6 +79,7 @@ install -d -m1777 %{buildroot}%{_localstatedir}/log/%{name}
 %dir %{_localstatedir}/log/%{name}
 
 %changelog
+* Sun July 27 2025 - Danie de Jager - 0.10.0-1
 * Fri May 16 2025 - Danie de Jager - 0.9.0-1
 * Mon Feb 10 2025 - Danie de Jager - 0.8.1-6
 * Tue Nov 5 2024 - Danie de Jager - 0.8.1-5
