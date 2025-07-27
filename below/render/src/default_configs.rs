@@ -1005,6 +1005,7 @@ impl HasRenderConfigForDump for model::SingleProcessModel {
                 UserPct => Some(gauge.unit("percent")),
                 SystemPct => Some(gauge.unit("percent")),
                 NumThreads => Some(counter),
+                Processor => Some(counter),
             },
             // OpenMetrics does not support strings
             Cmdline => None,
@@ -1056,6 +1057,7 @@ impl HasRenderConfig for model::ProcessCpuModel {
             UserPct => rc.title("CPU User").format(Precision(2)).suffix("%"),
             SystemPct => rc.title("CPU System").format(Precision(2)).suffix("%"),
             NumThreads => rc.title("Threads"),
+            Processor => rc.title("Processor"),
         }
     }
 }
@@ -1649,6 +1651,7 @@ impl HasRenderConfig for model::CgroupProperties {
             MemoryMax => rc.title("Mem Max").format(MaxOrReadableSize),
             MemorySwapMax => rc.title("Swap Max").format(MaxOrReadableSize),
             MemoryZswapMax => rc.title("Zswap Max").format(MaxOrReadableSize),
+            MemoryOomGroup => rc.title("OOM Group").format(Precision(1)),
             MemoryZswapWriteback => rc.title("Zswap WB").format(Precision(1)),
             CpuWeight => rc.title("CPU Weight"),
             CpusetCpus => rc.title("Allowed CPUs"),

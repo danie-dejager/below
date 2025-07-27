@@ -229,7 +229,7 @@ impl CgroupModel {
             .map(|(child_name, child_sample)| {
                 CgroupModel::new(
                     child_name.clone(),
-                    format!("{}/{}", full_path, child_name),
+                    format!("{full_path}/{child_name}"),
                     depth + 1,
                     child_sample,
                     last.and_then(|(last, delta)| {
@@ -916,6 +916,7 @@ pub struct CgroupProperties {
     pub memory_max: Option<i64>,
     pub memory_swap_max: Option<i64>,
     pub memory_zswap_max: Option<i64>,
+    pub memory_oom_group: Option<u32>,
     pub memory_zswap_writeback: Option<u32>,
     pub cpu_weight: Option<u32>,
     pub cpu_max_usec: Option<i64>,
@@ -938,6 +939,7 @@ impl CgroupProperties {
             memory_max: sample.memory_max,
             memory_swap_max: sample.memory_swap_max,
             memory_zswap_max: sample.memory_zswap_max,
+            memory_oom_group: sample.memory_oom_group,
             memory_zswap_writeback: sample.memory_zswap_writeback,
             cpu_weight: sample.cpu_weight,
             cpu_max_usec: sample.cpu_max.as_ref().map(|v| v.max_usec),
@@ -1005,7 +1007,7 @@ mod tests {
             assert_eq!(
                 model.query(
                     &CgroupModelFieldId::from_str(field_id)
-                        .map_err(|e| format!("Failed to parse field id {}: {:?}", field_id, e))
+                        .map_err(|e| format!("Failed to parse field id {field_id}: {e:?}"))
                         .unwrap()
                 ),
                 expected.map(|s| Field::Str(s.to_string()))
