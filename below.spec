@@ -5,6 +5,14 @@
 %global toolchain clang
 %global _lto_cflags %{nil}
 
+%if 0%{?rhel} == 9
+%global clangver 16
+%endif
+
+%if 0%{?amzn} == 2023
+%global clangver 18
+%endif
+
 Summary:        A time traveling resource monitor for modern Linux systems.
 Name:           %{name}
 Version:        %{version}
@@ -22,12 +30,19 @@ BuildRequires:  gcc
 BuildRequires:  make
 BuildRequires:  gzip
 BuildRequires:  ncurses-devel
-BuildRequires:  clang
 BuildRequires:  zlib-devel
 BuildRequires:  pkg-config
 BuildRequires:  m4
 BuildRequires:  elfutils-libelf-devel
 BuildRequires:  systemd-rpm-macros
+
+%if 0%{?rhel} == 9
+BuildRequires: clang16
+%endif
+
+%if 0%{?amzn} == 2023
+BuildRequires: clang18
+%endif
 
 Recommends:     logrotate
 
@@ -38,8 +53,9 @@ below is an interactive tool to view and record historical system data.
 %setup -q
 
 %build
-export CC=clang
-export CXX=clang++
+export CLANG=clang-%{?clangver}
+export CC=clang-%{?clangver}
+export CXX=clang++-%{?clangver}
 # Install Rust using curl
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 export PATH="$PATH:$HOME/.cargo/bin"
