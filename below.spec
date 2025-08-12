@@ -1,6 +1,6 @@
 %define name below
 %define version 0.10.0
-%define release 0%{?dist}
+%define release 1%{?dist}
 %define debug_package %{nil}
 %global toolchain clang
 %global _lto_cflags %{nil}
