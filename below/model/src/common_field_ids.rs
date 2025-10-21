@@ -23,7 +23,7 @@
 ///
 /// This list also servers as documentation for available field ids that could
 /// be used in other below crates. A test ensures that this list is up-to-date.
-pub const COMMON_MODEL_FIELD_IDS: [&str; 482] = [
+pub const COMMON_MODEL_FIELD_IDS: &[&str] = &[
     "system.hostname",
     "system.kernel_version",
     "system.os_release",
@@ -206,6 +206,7 @@ pub const COMMON_MODEL_FIELD_IDS: [&str; 482] = [
     "cgroup.[path:/<cgroup_path>/.]mem.file_writeback",
     "cgroup.[path:/<cgroup_path>/.]mem.file_thp",
     "cgroup.[path:/<cgroup_path>/.]mem.anon_thp",
+    "cgroup.[path:/<cgroup_path>/.]mem.shmem_thp",
     "cgroup.[path:/<cgroup_path>/.]mem.inactive_anon",
     "cgroup.[path:/<cgroup_path>/.]mem.active_anon",
     "cgroup.[path:/<cgroup_path>/.]mem.inactive_file",
