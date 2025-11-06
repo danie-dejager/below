@@ -105,34 +105,22 @@ impl SystemModel {
         sample.disks.iter().for_each(|(disk_name, end_disk_stat)| {
             disks.insert(
                 disk_name.clone(),
-                match last {
-                    Some((last_sample, duration)) if last_sample.disks.contains_key(disk_name) => {
-                        SingleDiskModel::new(
-                            last_sample.disks.get(disk_name).unwrap(),
-                            end_disk_stat,
-                            duration,
-                        )
-                    }
-                    _ => SingleDiskModel {
-                        name: Some(disk_name.clone()),
-                        ..Default::default()
-                    },
-                },
+                SingleDiskModel::new(
+                    last.and_then(|(last, duration)| {
+                        last.disks.get(disk_name).map(|disk| (disk, duration))
+                    }),
+                    end_disk_stat,
+                ),
             );
         });
 
         let mut btrfs: Option<BTreeMap<String, BtrfsModel>> = None;
-        match &sample.btrfs {
-            Some(b) => {
-                let tmp_btrfs: BTreeMap<String, BtrfsModel> = b
-                    .iter()
-                    .map(|(dir_name, end_dir_stat)| {
-                        (dir_name.clone(), BtrfsModel::new(end_dir_stat))
-                    })
-                    .collect();
-                btrfs = Some(tmp_btrfs);
-            }
-            None => {}
+        if let Some(b) = &sample.btrfs {
+            let tmp_btrfs: BTreeMap<String, BtrfsModel> = b
+                .iter()
+                .map(|(dir_name, end_dir_stat)| (dir_name.clone(), BtrfsModel::new(end_dir_stat)))
+                .collect();
+            btrfs = Some(tmp_btrfs);
         }
 
         SystemModel {
@@ -496,24 +484,36 @@ pub struct SingleDiskModel {
     pub time_spend_discard_ms: Option<u64>,
     pub major: Option<u64>,
     pub minor: Option<u64>,
+    #[queriable(ignore)]
+    pub is_partition: Option<bool>,
 }
 
 impl Recursive for SingleDiskModel {
     fn get_depth(&self) -> usize {
-        if self.minor == Some(0) { 0 } else { 1 }
+        if self.is_partition == Some(true) {
+            1
+        } else {
+            0
+        }
     }
 }
 
 impl SingleDiskModel {
     fn new(
-        begin: &procfs::DiskStat,
+        begin: Option<(&procfs::DiskStat, Duration)>,
         end: &procfs::DiskStat,
-        duration: Duration,
     ) -> SingleDiskModel {
-        let read_bytes_per_sec =
-            count_per_sec!(begin.read_sectors, end.read_sectors, duration).map(|val| val * 512.0);
-        let write_bytes_per_sec =
-            count_per_sec!(begin.write_sectors, end.write_sectors, duration).map(|val| val * 512.0);
+        let (read_bytes_per_sec, write_bytes_per_sec, discard_bytes_per_sec) = match begin {
+            Some((begin, duration)) => (
+                count_per_sec!(begin.read_sectors, end.read_sectors, duration)
+                    .map(|val| val * 512.0),
+                count_per_sec!(begin.write_sectors, end.write_sectors, duration)
+                    .map(|val| val * 512.0),
+                count_per_sec!(begin.discard_sectors, end.discard_sectors, duration)
+                    .map(|val| val * 512.0),
+            ),
+            None => (None, None, None),
+        };
         SingleDiskModel {
             name: end.name.clone(),
             disk_usage: end.disk_usage,
@@ -521,12 +521,7 @@ impl SingleDiskModel {
             filesystem_type: end.filesystem_type.clone(),
             read_bytes_per_sec,
             write_bytes_per_sec,
-            discard_bytes_per_sec: count_per_sec!(
-                begin.discard_sectors,
-                end.discard_sectors,
-                duration
-            )
-            .map(|val| val * 512.0),
+            discard_bytes_per_sec,
             disk_total_bytes_per_sec: opt_add(read_bytes_per_sec, write_bytes_per_sec),
             read_completed: end.read_completed,
             read_merged: end.read_merged,
@@ -542,6 +537,7 @@ impl SingleDiskModel {
             time_spend_discard_ms: end.time_spend_discard_ms,
             major: end.major,
             minor: end.minor,
+            is_partition: end.is_partition,
         }
     }
 }

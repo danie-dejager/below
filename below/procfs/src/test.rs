@@ -1236,6 +1236,9 @@ fn write_net_map(netsysfs: &TestProcfs) {
         netsysfs.create_net_stat_file_with_content(interface, "tx_packets", 23);
         netsysfs.create_net_stat_file_with_content(interface, "tx_window_errors", 24);
     }
+    // iface dir may container non-symlink entries
+    std::fs::create_dir_all(netsysfs.path().join("iface/bonding_masters"))
+        .expect("Failed to create dir");
 }
 
 fn write_net_snmp(netsysfs: &TestProcfs) {
@@ -1768,4 +1771,15 @@ fn test_read_mountinfo() {
             .expect("Unable to obtain mount_source"),
         "/dev/vda1"
     );
+}
+
+#[test]
+fn test_read_sysctl() {
+    let procfs = TestProcfs::new();
+    procfs.create_dir("sys/kernel");
+    procfs.create_file_with_content("sys/kernel/hung_task_detect_count", b"54\n");
+
+    let reader = procfs.get_reader();
+    let sysctl = reader.read_sysctl();
+    assert_eq!(sysctl.kernel_hung_task_detect_count, Some(54));
 }

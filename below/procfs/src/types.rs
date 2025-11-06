@@ -329,6 +329,7 @@ pub struct DiskStat {
     pub major: Option<u64>,
     pub minor: Option<u64>,
     pub name: Option<String>,
+    pub is_partition: Option<bool>,
     pub read_completed: Option<u64>,
     pub read_merged: Option<u64>,
     pub read_sectors: Option<u64>,
@@ -443,4 +444,9 @@ impl fmt::Display for PidState {
             PidState::Parked => write!(f, "PARKED"),
         }
     }
+}
+
+#[derive(Default, Clone, PartialEq, Debug, Serialize, Deserialize)]
+pub struct Sysctl {
+    pub kernel_hung_task_detect_count: Option<u64>,
 }
