@@ -33,6 +33,7 @@ pub struct CollectorOptions {
     pub enable_ksm_stats: bool,
     pub enable_resctrl_stats: bool,
     pub enable_tc_stats: bool,
+    pub process_stack_trace_filter: procfs::ProcessStackTraceFilter,
     pub btrfs_samples: u64,
     pub btrfs_min_pct: f64,
     pub cgroup_re: Option<Regex>,
@@ -54,6 +55,7 @@ impl Default for CollectorOptions {
             enable_ksm_stats: false,
             enable_resctrl_stats: false,
             enable_tc_stats: false,
+            process_stack_trace_filter: Default::default(),
             btrfs_samples: btrfs::DEFAULT_SAMPLES,
             btrfs_min_pct: btrfs::DEFAULT_MIN_PCT,
             cgroup_re: None,
@@ -133,7 +135,7 @@ pub fn get_os_release() -> Result<String> {
         .map(|o| o.trim_matches('\n').trim().into())
 }
 
-use os_info as _; // So RUSTFIXDEPS doesn't complain.
+use os_info as _; // So RUSTUNUSEDDEPS doesn't complain.
 #[cfg(not(fbcode_build))]
 pub fn get_os_release() -> Result<String> {
     let info = os_info::get();
@@ -207,7 +209,10 @@ fn collect_sample(
             logger,
             &options.cgroup_re,
         )?,
-        processes: merge_procfs_and_exit_data(reader.read_all_pids()?, exit_pidmap),
+        processes: merge_procfs_and_exit_data(
+            reader.read_all_pids(&options.process_stack_trace_filter)?,
+            exit_pidmap,
+        ),
         netstats: match procfs::NetReader::new(logger.clone()).and_then(|v| v.read_netstat()) {
             Ok(ns) => ns,
             Err(e) => {
@@ -453,6 +458,7 @@ fn collect_cgroup_sample(
         cpu_max: wrap(reader.read_cpu_max())?,
         cgroup_controllers: wrap(reader.read_cgroup_controllers())?,
         cgroup_subtree_control: wrap(reader.read_cgroup_subtree_control())?,
+        network_stat: wrap(reader.read_network_counters())?,
     })
 }
 

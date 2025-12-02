@@ -69,6 +69,7 @@ pub enum Field {
     Str(String),
     PidState(procfs::PidState),
     VecU32(Vec<u32>),
+    VecString(Vec<String>),
     StrSet(BTreeSet<String>),
     StrU64Map(BTreeMap<String, u64>),
     Cpuset(cgroupfs::Cpuset),
@@ -181,6 +182,12 @@ impl From<Vec<u32>> for Field {
     }
 }
 
+impl From<Vec<String>> for Field {
+    fn from(v: Vec<String>) -> Self {
+        Field::VecString(v)
+    }
+}
+
 impl From<BTreeSet<String>> for Field {
     fn from(v: BTreeSet<String>) -> Self {
         Field::StrSet(v)
@@ -270,6 +277,7 @@ impl PartialOrd for Field {
             (Field::Str(s), Field::Str(o)) => s.partial_cmp(o),
             (Field::PidState(s), Field::PidState(o)) => s.partial_cmp(o),
             (Field::VecU32(s), Field::VecU32(o)) => s.partial_cmp(o),
+            (Field::VecString(s), Field::VecString(o)) => s.partial_cmp(o),
             _ => None,
         }
     }
@@ -287,6 +295,15 @@ impl fmt::Display for Field {
             Field::Str(v) => v.fmt(f),
             Field::PidState(v) => v.fmt(f),
             Field::VecU32(v) => f.write_fmt(format_args!("{:?}", v)),
+            Field::VecString(v) => {
+                if v.is_empty() {
+                    f.write_str("?")
+                } else if v.len() == 1 {
+                    f.write_str(&v[0])
+                } else {
+                    f.write_fmt(format_args!("{} …", v[0]))
+                }
+            }
             Field::StrSet(v) => f.write_fmt(format_args!(
                 "{}",
                 v.iter()
