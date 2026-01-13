@@ -263,6 +263,7 @@ pub mod default_tabs {
     use model::CgroupMemoryModelFieldId::EventsMax;
     use model::CgroupMemoryModelFieldId::EventsOom;
     use model::CgroupMemoryModelFieldId::EventsOomKill;
+    use model::CgroupMemoryModelFieldId::EventsSockThrottled;
     use model::CgroupMemoryModelFieldId::File;
     use model::CgroupMemoryModelFieldId::FileDirty;
     use model::CgroupMemoryModelFieldId::FileMapped;
@@ -289,6 +290,7 @@ pub mod default_tabs {
     use model::CgroupMemoryModelFieldId::SlabUnreclaimable;
     use model::CgroupMemoryModelFieldId::Sock;
     use model::CgroupMemoryModelFieldId::Swap;
+    use model::CgroupMemoryModelFieldId::Swapcached;
     use model::CgroupMemoryModelFieldId::ThpCollapseAlloc;
     use model::CgroupMemoryModelFieldId::ThpFaultAlloc;
     use model::CgroupMemoryModelFieldId::Total;
@@ -384,6 +386,7 @@ pub mod default_tabs {
             ViewItem::from_default(Mem(FileMapped)),
             ViewItem::from_default(Mem(FileDirty)),
             ViewItem::from_default(Mem(FileWriteback)),
+            ViewItem::from_default(Mem(Swapcached)),
             ViewItem::from_default(Mem(FileThp)),
             ViewItem::from_default(Mem(AnonThp)),
             ViewItem::from_default(Mem(ShmemThp)),
@@ -418,6 +421,7 @@ pub mod default_tabs {
             ViewItem::from_default(Mem(EventsMax)),
             ViewItem::from_default(Mem(EventsOom)),
             ViewItem::from_default(Mem(EventsOomKill)),
+            ViewItem::from_default(Mem(EventsSockThrottled)),
         ]
     }
 

@@ -717,6 +717,7 @@ key_values_format!(MemoryStat; memory.stat; [
     file_mapped,
     file_dirty,
     file_writeback,
+    swapcached,
     file_thp,
     anon_thp,
     shmem_thp,
@@ -753,7 +754,8 @@ key_values_format!(MemoryEvents; memory.events; [
     high,
     max,
     oom,
-    oom_kill
+    oom_kill,
+    sock_throttled
 ]);
 
 key_values_format!(MemoryEventsLocal; memory.events.local; [
@@ -761,7 +763,8 @@ key_values_format!(MemoryEventsLocal; memory.events.local; [
     high,
     max,
     oom,
-    oom_kill
+    oom_kill,
+    sock_throttled
 ]);
 
 key_values_format!(CgroupStat; cgroup.stat; [nr_descendants, nr_dying_descendants]);

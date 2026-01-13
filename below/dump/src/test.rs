@@ -501,6 +501,7 @@ fn test_dump_cgroup_titles() {
         "File Mapped",
         "File Dirty",
         "File WB",
+        "Swap Cached",
         "File THP",
         "Anon THP",
         "Shmem THP",
@@ -535,11 +536,13 @@ fn test_dump_cgroup_titles() {
         "Events Max/s",
         "Events OOM/s",
         "Events Kill/s",
+        "Events Sock Throttled/s",
         "Events Local Low/s",
         "Events Local High/s",
         "Events Local Max/s",
         "Events Local OOM/s",
         "Events Local Kill/s",
+        "Events Local Sock Throttled/s",
         "RBytes",
         "WBytes",
         "R I/O",
@@ -978,7 +981,7 @@ fn test_dump_queue_content() {
         ..Default::default()
     };
     let model = model::Model {
-        time_elapsed: Duration::from_secs(60 * 10),
+        time_elapsed: Duration::from_mins(10),
         timestamp: SystemTime::now(),
         system: model::SystemModel::default(),
         cgroup: model::CgroupModel::default(),
@@ -1333,7 +1336,7 @@ fn test_dump_tc_content() {
     ];
 
     let model = model::Model {
-        time_elapsed: Duration::from_secs(60 * 10),
+        time_elapsed: Duration::from_mins(10),
         timestamp: SystemTime::now(),
         system: model::SystemModel::default(),
         cgroup: model::CgroupModel::default(),

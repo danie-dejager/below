@@ -275,6 +275,8 @@ pub const SAMPLE_MODEL_JSON: &str = r#"
                 "file_mapped": 200000000,
                 "file_dirty": 3000000,
                 "file_writeback": 60000000,
+                "swapcached": 1000000,
+                "file_thp": 10000000,
                 "anon_thp": 10000000,
                 "inactive_anon": 500000000,
                 "active_anon": 2000000000,
@@ -301,7 +303,8 @@ pub const SAMPLE_MODEL_JSON: &str = r#"
                 "events_high": 300000,
                 "events_max": 300000,
                 "events_oom": 0,
-                "events_oom_kill": 0
+                "events_oom_kill": 0,
+                "events_sock_throttled": 0
             },
             "io": null,
             "io_total": null,
@@ -369,6 +372,8 @@ pub const SAMPLE_MODEL_JSON: &str = r#"
                         "file_mapped": 7000000,
                         "file_dirty": 0,
                         "file_writeback": 800000,
+                        "swapcached": 0,
+                        "file_thp": 0,
                         "anon_thp": 0,
                         "inactive_anon": 3000000,
                         "active_anon": 3000000,
@@ -395,7 +400,8 @@ pub const SAMPLE_MODEL_JSON: &str = r#"
                         "events_high": 0,
                         "events_max": 0,
                         "events_oom": 0,
-                        "events_oom_kill": 0
+                        "events_oom_kill": 0,
+                        "events_sock_throttled": 0
                     },
                     "io": null,
                     "io_total": null,
@@ -458,6 +464,8 @@ pub const SAMPLE_MODEL_JSON: &str = r#"
                         "file_mapped": 0,
                         "file_dirty": 0,
                         "file_writeback": 0,
+                        "swapcached": 0,
+                        "file_thp": 0,
                         "anon_thp": 0,
                         "inactive_anon": 0,
                         "active_anon": 0,
@@ -484,7 +492,8 @@ pub const SAMPLE_MODEL_JSON: &str = r#"
                         "events_high": 0,
                         "events_max": 0,
                         "events_oom": 0,
-                        "events_oom_kill": 0
+                        "events_oom_kill": 0,
+                        "events_sock_throttled": 0
                     },
                     "io": null,
                     "io_total": null,
@@ -555,6 +564,8 @@ pub const SAMPLE_MODEL_JSON: &str = r#"
                         "file_mapped": 50000000,
                         "file_dirty": 1000000,
                         "file_writeback": 9000000,
+                        "swapcached": 1000000,
+                        "file_thp": 0,
                         "anon_thp": 0,
                         "inactive_anon": 60000000,
                         "active_anon": 40000000,
@@ -581,7 +592,8 @@ pub const SAMPLE_MODEL_JSON: &str = r#"
                         "events_high": 0,
                         "events_max": 0,
                         "events_oom": 0,
-                        "events_oom_kill": 0
+                        "events_oom_kill": 0,
+                        "events_sock_throttled": 0
                     },
                     "io": null,
                     "io_total": null,
@@ -649,6 +661,8 @@ pub const SAMPLE_MODEL_JSON: &str = r#"
                                 "file_mapped": 200000,
                                 "file_dirty": 0,
                                 "file_writeback": 0,
+                                "swapcached": 0,
+                                "file_thp": 0,
                                 "anon_thp": 0,
                                 "inactive_anon": 0,
                                 "active_anon": 100000,
@@ -675,7 +689,8 @@ pub const SAMPLE_MODEL_JSON: &str = r#"
                                 "events_high": 0,
                                 "events_max": 0,
                                 "events_oom": 0,
-                                "events_oom_kill": 0
+                                "events_oom_kill": 0,
+                                "events_sock_throttled": 0
                             },
                             "io": null,
                             "io_total": null,

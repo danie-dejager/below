@@ -301,6 +301,10 @@ impl CgroupModel {
                     aggregated_memory.events_oom_kill,
                     child_memory.events_oom_kill,
                 );
+                aggregated_memory.events_sock_throttled = opt_add(
+                    aggregated_memory.events_sock_throttled,
+                    child_memory.events_sock_throttled,
+                );
             }
         }
         // Assign aggregated values to root memory model
@@ -312,6 +316,7 @@ impl CgroupModel {
             memory.events_max = aggregated_memory.events_max;
             memory.events_oom = aggregated_memory.events_oom;
             memory.events_oom_kill = aggregated_memory.events_oom_kill;
+            memory.events_sock_throttled = aggregated_memory.events_sock_throttled;
         }
 
         self
@@ -521,6 +526,7 @@ pub struct CgroupMemoryModel {
     pub file_mapped: Option<u64>,
     pub file_dirty: Option<u64>,
     pub file_writeback: Option<u64>,
+    pub swapcached: Option<u64>,
     pub file_thp: Option<u64>,
     pub anon_thp: Option<u64>,
     pub shmem_thp: Option<u64>,
@@ -555,11 +561,13 @@ pub struct CgroupMemoryModel {
     pub events_max: Option<u64>,
     pub events_oom: Option<u64>,
     pub events_oom_kill: Option<u64>,
+    pub events_sock_throttled: Option<u64>,
     pub events_local_low: Option<u64>,
     pub events_local_high: Option<u64>,
     pub events_local_max: Option<u64>,
     pub events_local_oom: Option<u64>,
     pub events_local_oom_kill: Option<u64>,
+    pub events_local_sock_throttled: Option<u64>,
 }
 
 impl std::ops::Add for CgroupMemoryModel {
@@ -581,6 +589,7 @@ impl std::ops::Add for CgroupMemoryModel {
             file_mapped: opt_add(self.file_mapped, other.file_mapped),
             file_dirty: opt_add(self.file_dirty, other.file_dirty),
             file_writeback: opt_add(self.file_writeback, other.file_writeback),
+            swapcached: opt_add(self.swapcached, other.swapcached),
             file_thp: opt_add(self.file_thp, other.file_thp),
             anon_thp: opt_add(self.anon_thp, other.anon_thp),
             shmem_thp: opt_add(self.shmem_thp, other.shmem_thp),
@@ -636,11 +645,16 @@ impl std::ops::Add for CgroupMemoryModel {
             events_max: opt_add(self.events_max, other.events_max),
             events_oom: opt_add(self.events_oom, other.events_oom),
             events_oom_kill: opt_add(self.events_oom_kill, other.events_oom_kill),
+            events_sock_throttled: opt_add(self.events_sock_throttled, other.events_sock_throttled),
             events_local_low: opt_add(self.events_local_low, other.events_local_low),
             events_local_high: opt_add(self.events_local_high, other.events_local_high),
             events_local_max: opt_add(self.events_local_max, other.events_local_max),
             events_local_oom: opt_add(self.events_local_oom, other.events_local_oom),
             events_local_oom_kill: opt_add(self.events_local_oom_kill, other.events_local_oom_kill),
+            events_local_sock_throttled: opt_add(
+                self.events_local_sock_throttled,
+                other.events_local_sock_throttled,
+            ),
         }
     }
 }
@@ -671,6 +685,12 @@ impl CgroupMemoryModel {
             model.events_oom = count_per_sec!(last_memory_events.oom, events.oom, delta, u64);
             model.events_oom_kill =
                 count_per_sec!(last_memory_events.oom_kill, events.oom_kill, delta, u64);
+            model.events_sock_throttled = count_per_sec!(
+                last_memory_events.sock_throttled,
+                events.sock_throttled,
+                delta,
+                u64
+            );
         }
         if let Some(events_local) = &sample.memory_events_local
             && let Some((
@@ -695,6 +715,12 @@ impl CgroupMemoryModel {
                 delta,
                 u64
             );
+            model.events_local_sock_throttled = count_per_sec!(
+                last_memory_events_local.sock_throttled,
+                events_local.sock_throttled,
+                delta,
+                u64
+            );
         }
         if let Some(stat) = &sample.memory_stat {
             model.anon = stat.anon;
@@ -712,6 +738,7 @@ impl CgroupMemoryModel {
             model.file_mapped = stat.file_mapped;
             model.file_dirty = stat.file_dirty;
             model.file_writeback = stat.file_writeback;
+            model.swapcached = stat.swapcached;
             model.file_thp = stat.file_thp;
             model.anon_thp = stat.anon_thp;
             model.shmem_thp = stat.shmem_thp;
@@ -1154,6 +1181,7 @@ mod tests {
                     events_max: Some(3),
                     events_oom: Some(4),
                     events_oom_kill: Some(5),
+                    events_sock_throttled: Some(6),
                     events_local_low: Some(10),
                     events_local_high: Some(20),
                     ..Default::default()
@@ -1179,6 +1207,7 @@ mod tests {
                     events_max: Some(3),
                     events_oom: Some(4),
                     events_oom_kill: Some(5),
+                    events_sock_throttled: Some(6),
                     events_local_low: Some(10),
                     events_local_high: Some(20),
                     ..Default::default()
@@ -1214,6 +1243,10 @@ mod tests {
         assert_eq!(root.data.memory.as_ref().unwrap().events_max, Some(6));
         assert_eq!(root.data.memory.as_ref().unwrap().events_oom, Some(8));
         assert_eq!(root.data.memory.as_ref().unwrap().events_oom_kill, Some(10));
+        assert_eq!(
+            root.data.memory.as_ref().unwrap().events_sock_throttled,
+            Some(12)
+        );
         assert_eq!(
             root.data.network.as_ref().unwrap().rx_bytes_per_sec,
             Some(200.0)
