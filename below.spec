@@ -59,6 +59,10 @@ below is an interactive tool to view and record historical system data.
 %setup -q
 
 %build
+%if 0%{?amzn} == 2023
+export RUSTFLAGS="$RUSTFLAGS -Clink-arg=-fuse-ld=bfd"
+%endif
+
 export CLANG=clang-%{?clangver}
 export CC=clang-%{?clangver}
 export CXX=clang++-%{?clangver}
