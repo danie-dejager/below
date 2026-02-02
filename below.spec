@@ -6,7 +6,7 @@
 %global _lto_cflags %{nil}
 
 %if 0%{?rhel} == 9
-%global clangver 16
+%global clangver 15
 %endif
 
 %if 0%{?rhel} == 10
@@ -41,7 +41,7 @@ BuildRequires:  elfutils-libelf-devel
 BuildRequires:  systemd-rpm-macros
 
 %if 0%{?rhel} == 9
-BuildRequires: clang16
+BuildRequires: clang15
 %endif
 %if 0%{?rhel} == 10
 BuildRequires: clang18
