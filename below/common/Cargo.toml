@@ -10,12 +10,12 @@ repository = "https://github.com/facebookincubator/below"
 license = "Apache-2.0"
 
 [dependencies]
-anyhow = "1.0.98"
-chrono = { version = "0.4.41", features = ["clock", "serde", "std"], default-features = false }
+anyhow = "1.0.101"
+chrono = { version = "0.4.44", features = ["clock", "serde", "std"], default-features = false }
 cursive = { version = "0.21.1", features = ["crossterm-backend"], default-features = false }
 humantime = "2.1"
 once_cell = "1.21"
-regex = "1.12.2"
+regex = "1.12.3"
 serde = { version = "1.0.219", features = ["derive", "rc"] }
 slog = { version = "2.8.2", features = ["max_level_trace", "nested-values"] }
 slog-term = "2.9.2"

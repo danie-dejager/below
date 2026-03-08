@@ -10,20 +10,20 @@ repository = "https://github.com/facebookincubator/below"
 license = "Apache-2.0"
 
 [dependencies]
-anyhow = "1.0.98"
+anyhow = "1.0.101"
 bitflags = { version = "2.9", features = ["serde", "std"], default-features = false }
 bytes = { version = "1.11.1", features = ["serde"] }
 common = { package = "below-common", version = "0.11.0", path = "../common" }
 humantime = "2.1"
 maplit = "1.0"
-memmap2 = "0.9.5"
+memmap2 = "0.9.10"
 model = { package = "below-model", version = "0.11.0", path = "../model" }
 nix = { version = "0.30.1", features = ["dir", "event", "hostname", "inotify", "ioctl", "mman", "mount", "net", "poll", "ptrace", "reboot", "resource", "sched", "signal", "term", "time", "user", "zerocopy"] }
 serde = { version = "1.0.219", features = ["derive", "rc"] }
-serde_cbor = "0.11"
+serde_cbor = "0.11.2"
 slog = { version = "2.8.2", features = ["max_level_trace", "nested-values"] }
 static_assertions = "1.1.0"
-zstd-safe = { version = "7.0.0", features = ["std"] }
+zstd-safe = { version = "7.2.4", features = ["std"] }
 
 [dev-dependencies]
 itertools = "0.14.0"
@@ -31,7 +31,7 @@ lazy_static = "1.5"
 paste = "1.0.14"
 slog-term = "2.9.2"
 tempfile = "3.22"
-zstd = { version = "0.13", features = ["experimental", "zstdmt"] }
+zstd = { version = "0.13.3", features = ["experimental", "zstdmt"] }
 
 [features]
 no-vendor = ["zstd-safe/pkg-config", "zstd/pkg-config"]

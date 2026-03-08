@@ -10,19 +10,19 @@ repository = "https://github.com/facebookincubator/below"
 license = "Apache-2.0"
 
 [dependencies]
-anyhow = "1.0.98"
+anyhow = "1.0.101"
 async-trait = "0.1.86"
 below_derive = { version = "0.11.0", path = "../below_derive" }
 btrfs = { package = "below-btrfs", version = "0.11.0", path = "../btrfs" }
 cgroupfs = { version = "0.11.0", path = "../cgroupfs" }
 common = { package = "below-common", version = "0.11.0", path = "../common" }
-enum-iterator = "2.1"
+enum-iterator = "2.3.0"
 ethtool = { package = "below-ethtool", version = "0.11.0", path = "../ethtool" }
 gpu_stats = { package = "below-gpu-stats", version = "0.11.0", path = "../gpu_stats" }
 hostname = "0.3"
-os_info = "3.11.0"
+os_info = "3.14.0"
 procfs = { package = "fb_procfs", version = "0.11.0", path = "../procfs" }
-regex = "1.12.2"
+regex = "1.12.3"
 resctrlfs = { version = "0.11.0", path = "../resctrlfs" }
 serde = { version = "1.0.219", features = ["derive", "rc"] }
 serde_json = { version = "1.0.140", features = ["alloc", "float_roundtrip", "raw_value", "unbounded_depth"] }
