@@ -10,7 +10,7 @@ repository = "https://github.com/facebookincubator/below"
 license = "Apache-2.0"
 
 [dependencies]
-anyhow = "1.0.101"
+anyhow = "1.0.102"
 async-trait = "0.1.86"
 below_derive = { version = "0.11.0", path = "../below_derive" }
 btrfs = { package = "below-btrfs", version = "0.11.0", path = "../btrfs" }
@@ -19,7 +19,7 @@ common = { package = "below-common", version = "0.11.0", path = "../common" }
 enum-iterator = "2.3.0"
 ethtool = { package = "below-ethtool", version = "0.11.0", path = "../ethtool" }
 gpu_stats = { package = "below-gpu-stats", version = "0.11.0", path = "../gpu_stats" }
-hostname = "0.3"
+hostname = "0.4.2"
 os_info = "3.14.0"
 procfs = { package = "fb_procfs", version = "0.11.0", path = "../procfs" }
 regex = "1.12.3"

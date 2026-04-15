@@ -65,6 +65,8 @@ pub enum ProcessStackTraceFilter {
     None,
     /// Capture stack traces only for processes in uninterruptible sleep (D state)
     Uninterruptible,
+    /// Capture stack traces only for processes in uninterruptible sleep (D state) or zombie (Z state)
+    UninterruptibleAndZombie,
     /// Capture stack traces for processes in uninterruptible sleep (D) or running (R) states
     UninterruptibleAndRunning,
     /// Capture stack traces for all processes regardless of state
@@ -76,6 +78,9 @@ impl ProcessStackTraceFilter {
     pub fn should_capture(&self, state: &PidState) -> bool {
         match self {
             Self::Uninterruptible => matches!(state, PidState::UninterruptibleSleep),
+            Self::UninterruptibleAndZombie => {
+                matches!(state, PidState::UninterruptibleSleep | PidState::Zombie)
+            }
             Self::UninterruptibleAndRunning => {
                 matches!(state, PidState::UninterruptibleSleep | PidState::Running)
             }
@@ -536,7 +541,9 @@ impl ProcReader {
             ..Default::default()
         };
 
-        let mut items = items.skip(2);
+        // Skip zero or more optional fields
+        let mut items = items.skip_while(|item| item != &"-").skip(1);
+
         mount_info.fs_type = parse_item!(path, items.next(), String, line)?;
         mount_info.mount_source = parse_item!(path, items.next(), String, line)?;
 
@@ -847,6 +854,24 @@ impl ProcReader {
         self.read_pid_exe_path_from_path(self.path.join(pid.to_string()))
     }
 
+    fn read_pid_ns_from_path<P: AsRef<Path>>(&self, path: P) -> Result<u32> {
+        let path = path.as_ref().join("ns").join("pid");
+        let link = std::fs::read_link(path.clone()).map_err(|e| Error::IoError(path.clone(), e))?;
+        let link_str = link.to_string_lossy();
+        // Format: "pid:[<ino>]"
+        let ino_str = link_str
+            .strip_prefix("pid:[")
+            .and_then(|s| s.strip_suffix(']'))
+            .ok_or_else(|| Error::InvalidFileFormat(path.clone()))?;
+        ino_str
+            .parse::<u32>()
+            .map_err(|_| Error::InvalidFileFormat(path))
+    }
+
+    pub fn read_pid_ns(&self, pid: u32) -> Result<u32> {
+        self.read_pid_ns_from_path(self.path.join(pid.to_string()))
+    }
+
     /// Parse a single stack frame line from /proc/<pid>/stack
     ///
     /// Formats handled:
@@ -1081,6 +1106,13 @@ impl ProcReader {
             // 2. Even with root permission, some exe will have broken link, kworker for example.
             if let Ok(s) = self.read_pid_exe_path_from_path(entry.path()) {
                 pidinfo.exe_path = Some(s);
+            }
+
+            match self.read_pid_ns_from_path(entry.path()) {
+                Err(Error::IoError(_, ref e))
+                    if e.raw_os_error()
+                        .is_some_and(|ec| ec == ENOENT || ec == ESRCH || ec == EACCES) => {}
+                res => pidinfo.pid_ns = Some(res?),
             }
 
             // call lambda
