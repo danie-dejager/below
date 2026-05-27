@@ -23,7 +23,7 @@ unit-scripts = "../etc"
 anyhow = "1.0.102"
 cgroupfs = { version = "0.11.0", path = "cgroupfs" }
 clap = { version = "4.6.0", features = ["derive", "env", "string", "unicode", "wrap_help"] }
-clap_complete = "4.6.2"
+clap_complete = "4.6.5"
 common = { package = "below-common", version = "0.11.0", path = "common" }
 config = { package = "below-config", version = "0.11.0", path = "config" }
 cursive = { version = "0.21.1", features = ["crossterm-backend"], default-features = false }
@@ -46,7 +46,7 @@ slog-term = "2.9.2"
 store = { package = "below-store", version = "0.11.0", path = "store" }
 tar = "0.4.45"
 tempfile = "3.27.0"
-tokio = { version = "1.52.1", features = ["full", "test-util", "tracing"] }
+tokio = { version = "1.52.3", features = ["full", "test-util", "tracing"] }
 view = { package = "below-view", version = "0.11.0", path = "view" }
 
 [dev-dependencies]
