@@ -1,6 +1,6 @@
 %define name below
 %define version 0.11.0
-%define release 1%{?dist}
+%define release 2%{?dist}
 %define debug_package %{nil}
 %global toolchain clang
 %global _lto_cflags %{nil}
@@ -105,6 +105,7 @@ install -d -m1777 %{buildroot}%{_localstatedir}/log/%{name}
 %dir %{_localstatedir}/log/%{name}
 
 %changelog
+* Fri Jul 10 2026 - Danie de Jager - 0.11.0-2
 * Mon Feb 02 2026 - Danie de Jager - 0.11.0-1
 * Sun Jul 27 2025 - Danie de Jager - 0.10.0-1
 * Fri May 16 2025 - Danie de Jager - 0.9.0-1
