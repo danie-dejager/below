@@ -12,11 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-mod network_counters;
-
-mod cgroup_bpf_skel {
-    include!(concat!(env!("OUT_DIR"), "/cgroup_bpf.skel.rs"));
-}
-// The driver names the loaded-skel type to hold it across samples.
-pub use cgroup_bpf_skel::CgroupBpfSkel;
-pub use cgroup_bpf_skel::CgroupBpfSkelBuilder;
+//! Vendored kernel BTF header (`vmlinux.h`) shared by below's BPF programs.
+//!
+//! This crate has no Rust API. It carries the version-pinned `vmlinux_601.h`
+//! (and the stable `vmlinux.h` include name) so `cgroupfs` and the `below`
+//! binary compile their BPF against one copy in the open-source/cargo build. Its
+//! `build.rs` exposes the header directory to dependents' build scripts as
+//! `DEP_BELOW_VMLINUX_INCLUDE`, which they add to the BPF compiler's include
+//! path. The buck build gets the header via the `bpf_header_library` targets in
+//! BUCK instead.
