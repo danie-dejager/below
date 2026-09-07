@@ -117,7 +117,7 @@ pub fn get_prefix(collapsed: bool) -> &'static str {
 /// * `width` -- The final target string length.
 /// * `start_idx` -- From which index should we start apply the stop_filter
 /// * `stop_filter` -- The first half will be cut at the first index that returns false
-///    after apply the filter if the index is less than (width - 3)/2
+///   after apply the filter if the index is less than (width - 3)/2
 pub fn fold_string<F>(val: &str, width: usize, start_idx: usize, stop_filter: F) -> String
 where
     F: FnMut(char) -> bool,
@@ -192,9 +192,10 @@ pub fn read_kern_file_to_internal_buffer<R: Read>(
     let mut total_read = 0;
 
     loop {
-        let buf_len = buffer.len();
-        if buf_len < total_read + BUFFER_CHUNK_SIZE {
-            buffer.resize(buf_len + BUFFER_CHUNK_SIZE, 0);
+        // Grow only when full, zero-filling the new bytes so read() always gets
+        // initialized memory; reusing the buffer preserves capacity across calls.
+        if total_read == buffer.len() {
+            buffer.resize(total_read + BUFFER_CHUNK_SIZE, 0);
         }
 
         match reader.read(&mut buffer[total_read..]) {

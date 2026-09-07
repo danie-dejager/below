@@ -11,7 +11,7 @@ license = "Apache-2.0"
 
 [dependencies]
 anyhow = "1.0.104"
-async-trait = "0.1.91"
+async-trait = "0.1.92"
 below_derive = { version = "0.11.0", path = "../below_derive" }
 btrfs = { package = "below-btrfs", version = "0.11.0", path = "../btrfs" }
 cgroupfs = { version = "0.11.0", path = "../cgroupfs" }
@@ -30,4 +30,4 @@ slog = { version = "2.8.2", features = ["max_level_trace", "nested-values"] }
 tc = { package = "below-tc", version = "0.11.0", path = "../tc" }
 
 [dev-dependencies]
-futures = { version = "0.3.31", features = ["async-await", "compat"] }
+futures = { version = "0.3.34", features = ["async-await", "compat"] }
