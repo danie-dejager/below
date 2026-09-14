@@ -11,7 +11,7 @@ license = "Apache-2.0"
 
 [dependencies]
 anyhow = "1.0.104"
-bitflags = { version = "2.13.1", features = ["serde", "std"], default-features = false }
+bitflags = { version = "2.13.2", features = ["serde", "std"], default-features = false }
 bytes = { version = "1.12.1", features = ["serde"] }
 common = { package = "below-common", version = "0.11.0", path = "../common" }
 humantime = "2.4.0"
@@ -23,7 +23,7 @@ serde = { version = "1.0.229", features = ["derive", "rc"] }
 serde_cbor = "0.11.2"
 slog = { version = "2.8.2", features = ["max_level_trace", "nested-values"] }
 static_assertions = "1.1.0"
-zstd-safe = { version = "7.2.4", features = ["std"] }
+zstd-safe = { version = "7.3.0", features = ["std"] }
 
 [dev-dependencies]
 itertools = "0.15.0"
