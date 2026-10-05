@@ -15,6 +15,8 @@
 use std::collections::BTreeMap;
 use std::net::ToSocketAddrs;
 use std::sync::Arc;
+use std::time::Duration;
+use std::time::Instant;
 use std::time::SystemTime;
 
 use anyhow::Context;
@@ -41,6 +43,7 @@ mod test;
 const LOCALHOST: &str = "127.0.0.1";
 const DYNOLOG_SERVICE_PORT: u16 = 1777;
 const RGPU_SERVICE_PORT: u16 = 5829;
+const RGPU_PROCESSING_TIMEOUT_MS: u64 = 6000;
 
 const KB_PER_MB: u64 = 1024;
 const MB: u64 = 1024 * 1024;
@@ -1173,14 +1176,61 @@ fn handle_fbthrift_error<T>(
     handle_fbthrift_error!(result, logger, fbthrift::NonthrowingFunctionError)
 }
 
+/// Calls rgpu at most once per `interval` and reuses the last successful
+/// response in between.
+struct RgpuReader {
+    client: Arc<dyn RgpuService + Send + Sync>,
+    interval: Duration,
+    last_success: Option<(Instant, GpuMap)>,
+}
+
+impl RgpuReader {
+    // Returning `None` means there was a recoverable error.
+    async fn read(&mut self, logger: &slog::Logger) -> Result<Option<GpuMap>> {
+        if let Some((fetched_at, gpu_map)) = &self.last_success
+            && fetched_at.elapsed() < self.interval
+        {
+            return Ok(Some(gpu_map.clone()));
+        }
+
+        let fetched_at = Instant::now();
+        let gpu_info_response = match handle_fbthrift_error!(
+            self.client
+                .getGPUInfoCache(&rgpu_service::GetGPUInfoCacheRequest {
+                    ..Default::default()
+                })
+                .await,
+            logger,
+            rgpu_service_clients::errors::GetGPUInfoCacheError
+        )? {
+            None => return Ok(None),
+            Some(r) => r,
+        };
+        let gpu_map = rgpu_gpu_info_response_to_gpu_map(logger, gpu_info_response)?;
+        // rgpu returns no devices while its cache is cold (e.g. just after a
+        // restart), so only reuse responses that have some.
+        if !gpu_map.is_empty() {
+            self.last_success = Some((fetched_at, gpu_map.clone()));
+        }
+        Ok(Some(gpu_map))
+    }
+
+    fn forget(&mut self) {
+        self.last_success = None;
+    }
+}
+
 pub struct GpuStatsCollector {
     logger: slog::Logger,
     dynolog_client: Arc<dyn DynoLogService + Send + Sync>,
-    rgpu_client: Arc<dyn RgpuService + Send + Sync>,
+    rgpu: RgpuReader,
 }
 
 impl GpuStatsCollector {
-    pub fn new(fb: FacebookInit, logger: slog::Logger) -> Result<Self> {
+    /// rgpu is called at most once per `rgpu_interval`; collections in between
+    /// reuse its last successful response. Dynolog is called on every
+    /// collection.
+    pub fn new(fb: FacebookInit, logger: slog::Logger, rgpu_interval: Duration) -> Result<Self> {
         // We are talking to local dynolog. That said, we should
         // still use ServiceRouter rather than raw thrift client. See
         // https://fburl.com/v48pmqn1
@@ -1203,6 +1253,12 @@ impl GpuStatsCollector {
         let conn_config = hashmap! {
             "retries_per_reason".to_owned() => "all=0".into(),
         };
+        // getGPUInfoCache may block on a synchronous NVML collection when the
+        // RGPU per-group cache is stale, bounded server-side at 5s.
+        let rgpu_conn_config = hashmap! {
+            "retries_per_reason".to_owned() => "all=0".into(),
+            "processing_timeout".to_owned() => RGPU_PROCESSING_TIMEOUT_MS.to_string(),
+        };
         let dynolog_client = make_DynoLogService_srclient!(
             fb,
             tiername = "",
@@ -1213,30 +1269,46 @@ impl GpuStatsCollector {
             fb,
             tiername = "",
             with_service_options = &rgpu_service_opts,
-            with_conn_config = &conn_config
+            with_conn_config = &rgpu_conn_config
         )?;
-        Ok(Self {
+        Ok(Self::new_with_client(
             logger,
             dynolog_client,
             rgpu_client,
-        })
+            rgpu_interval,
+        ))
     }
 
     pub fn new_with_client(
         logger: slog::Logger,
         dynolog_client: Arc<dyn DynoLogService + Send + Sync>,
         rgpu_client: Arc<dyn RgpuService + Send + Sync>,
+        rgpu_interval: Duration,
     ) -> Self {
         Self {
             logger,
             dynolog_client,
-            rgpu_client,
+            rgpu: RgpuReader {
+                client: rgpu_client,
+                interval: rgpu_interval,
+                last_success: None,
+            },
         }
     }
 
     // Should match `try_collect()` signature of `model::AsyncCollectorPlugin`.
     // Returning `None` means there was a recoverable error.
-    pub async fn try_collect(&self) -> Result<Option<GpuSample>> {
+    pub async fn try_collect(&mut self) -> Result<Option<GpuSample>> {
+        let result = self.collect().await;
+        if result.is_err() {
+            // The reused rgpu response may be what failed, e.g. if a GPU went
+            // away, so fetch a fresh one next time.
+            self.rgpu.forget();
+        }
+        result
+    }
+
+    async fn collect(&mut self) -> Result<Option<GpuSample>> {
         let read_ts = common::util::get_unix_timestamp(SystemTime::now());
         let asicmon_future = self.dynolog_client.listAsicIDs().and_then(|asic_ids| {
             // listAsicIDs() will return something like:
@@ -1258,20 +1330,11 @@ impl GpuStatsCollector {
             )
         });
 
-        let gpu_info_response = match handle_fbthrift_error!(
-            self.rgpu_client
-                .getGPUInfoCache(&rgpu_service::GetGPUInfoCacheRequest {
-                    ..Default::default()
-                })
-                .await,
-            &self.logger,
-            rgpu_service_clients::errors::GetGPUInfoCacheError
-        )? {
+        let mut gpu_map = match self.rgpu.read(&self.logger).await? {
             // return early on recoverable error
             None => return Ok(None),
-            Some(r) => r,
+            Some(gpu_map) => gpu_map,
         };
-        let mut gpu_map = rgpu_gpu_info_response_to_gpu_map(&self.logger, gpu_info_response)?;
 
         let maybe_asicmon_stats_response =
             handle_fbthrift_error(asicmon_future.await, &self.logger)?;
@@ -1288,12 +1351,15 @@ impl GpuStatsCollector {
         let sample = if let Some(sample) = gpu_map_to_gpu_sample(&self.logger, gpu_map)? {
             debug!(self.logger, "Collected GPU sample: {:?}", sample);
             const STALE_WARNING_THRESHOLD: u64 = 60; // 60s which is the gpumon refresh rate
-            if sample.timestamp < read_ts && read_ts - sample.timestamp > STALE_WARNING_THRESHOLD {
+            // Reused rgpu snapshots keep their original timestamp.
+            let stale_threshold =
+                STALE_WARNING_THRESHOLD.saturating_add(self.rgpu.interval.as_secs());
+            if sample.timestamp < read_ts && read_ts - sample.timestamp > stale_threshold {
                 warn!(
                     self.logger,
                     "GPU data stale {} > {}",
                     read_ts - sample.timestamp,
-                    STALE_WARNING_THRESHOLD
+                    stale_threshold
                 );
             }
             sample
